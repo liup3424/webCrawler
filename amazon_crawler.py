@@ -129,29 +129,82 @@ class AmazonCrawler:
             # Find product containers
             products = []
             product_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-component-type="s-search-result"]')
+            print(f"Found {len(product_elements)} product elements")
+            
+            # If no elements found with the main selector, try alternative selectors
+            if not product_elements:
+                product_elements = self.driver.find_elements(By.CSS_SELECTOR, '.s-result-item')
+                print(f"Found {len(product_elements)} product elements with alternative selector")
+            
+            if not product_elements:
+                product_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-asin]')
+                print(f"Found {len(product_elements)} product elements with ASIN selector")
             
             for i, element in enumerate(product_elements[:3]):  # Top 3 products
                 try:
-                    # Extract product information
-                    title_element = element.find_element(By.CSS_SELECTOR, 'h2 a span')
-                    title = title_element.text
+                    # Extract product information - try multiple selectors for title
+                    title = "N/A"
+                    try:
+                        title_element = element.find_element(By.CSS_SELECTOR, 'h2 a span')
+                        title = title_element.text
+                    except:
+                        try:
+                            title_element = element.find_element(By.CSS_SELECTOR, 'h2 a')
+                            title = title_element.text
+                        except:
+                            try:
+                                title_element = element.find_element(By.CSS_SELECTOR, '.s-size-mini .s-color-base')
+                                title = title_element.text
+                            except:
+                                try:
+                                    title_element = element.find_element(By.CSS_SELECTOR, 'h2 span')
+                                    title = title_element.text
+                                except:
+                                    try:
+                                        title_element = element.find_element(By.CSS_SELECTOR, '.s-color-base')
+                                        title = title_element.text
+                                    except:
+                                        try:
+                                            title_element = element.find_element(By.CSS_SELECTOR, 'a[href*="/dp/"] span')
+                                            title = title_element.text
+                                        except:
+                                            pass
                     
-                    link_element = element.find_element(By.CSS_SELECTOR, 'h2 a')
-                    product_url = link_element.get_attribute('href')
+                    # Get product URL
+                    product_url = "N/A"
+                    try:
+                        link_element = element.find_element(By.CSS_SELECTOR, 'h2 a')
+                        product_url = link_element.get_attribute('href')
+                    except:
+                        try:
+                            link_element = element.find_element(By.CSS_SELECTOR, 'a[href*="/dp/"]')
+                            product_url = link_element.get_attribute('href')
+                        except:
+                            pass
                     
                     # Try to get price
+                    price = "N/A"
                     try:
                         price_element = element.find_element(By.CSS_SELECTOR, '.a-price-whole')
                         price = price_element.text
                     except:
-                        price = "N/A"
+                        try:
+                            price_element = element.find_element(By.CSS_SELECTOR, '.a-price .a-offscreen')
+                            price = price_element.text
+                        except:
+                            pass
                     
                     # Try to get rating
+                    rating = "N/A"
                     try:
                         rating_element = element.find_element(By.CSS_SELECTOR, '.a-icon-alt')
                         rating = rating_element.get_attribute('textContent')
                     except:
-                        rating = "N/A"
+                        try:
+                            rating_element = element.find_element(By.CSS_SELECTOR, '[data-hook="rating-out-of-text"]')
+                            rating = rating_element.text
+                        except:
+                            pass
                     
                     products.append({
                         'rank': i + 1,
@@ -178,7 +231,15 @@ class AmazonCrawler:
                 self.setup_driver()
                 
             # Navigate to product reviews page
-            reviews_url = product_url.replace('/dp/', '/product-reviews/') + '/ref=cm_cr_dp_d_show_all_btm'
+            if '/dp/' in product_url:
+                # Extract ASIN from URL
+                asin = product_url.split('/dp/')[1].split('/')[0]
+                reviews_url = f"https://www.amazon.com/product-reviews/{asin}/ref=cm_cr_dp_d_show_all_btm"
+            else:
+                print(f"Invalid product URL format: {product_url}")
+                return []
+            
+            print(f"Navigating to reviews URL: {reviews_url}")
             self.driver.get(reviews_url)
             time.sleep(3)
             
