@@ -13,6 +13,8 @@ from amazon_crawler import AmazonCrawler
 def main():
     parser = argparse.ArgumentParser(description='Amazon Product Review Crawler')
     parser.add_argument('keyword', help='Product keyword to search for')
+    parser.add_argument('--top-count', type=int, default=3, 
+                       help='Number of top products to scrape (default: 3)')
     parser.add_argument('--star-filter', type=int, choices=[1,2,3,4,5], 
                        help='Filter reviews by star rating (1-5)')
     parser.add_argument('--max-pages', type=int, default=2, 
@@ -52,7 +54,7 @@ def main():
         
         # Search for products
         print(f"Searching for products with keyword: '{args.keyword}'")
-        products = crawler.search_products(args.keyword)
+        products = crawler.search_products(args.keyword, top_count=args.top_count)
         
         if not products:
             print("No products found!")

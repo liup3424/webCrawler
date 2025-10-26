@@ -112,8 +112,8 @@ class AmazonCrawler:
         for name, value in cookies.items():
             self.session.cookies.set(name, value)
             
-    def search_products(self, keyword: str) -> List[Dict]:
-        """Search for products on Amazon and return top 3 product details."""
+    def search_products(self, keyword: str, top_count: int = 3) -> List[Dict]:
+        """Search for products on Amazon and return top N product details."""
         try:
             if not self.driver:
                 self.setup_driver()
@@ -140,7 +140,7 @@ class AmazonCrawler:
                 product_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-asin]')
                 print(f"Found {len(product_elements)} product elements with ASIN selector")
             
-            for i, element in enumerate(product_elements[:3]):  # Top 3 products
+            for i, element in enumerate(product_elements[:top_count]):  # Top N products
                 try:
                     # Extract product information - try multiple selectors for title
                     title = "N/A"

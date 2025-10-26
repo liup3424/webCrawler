@@ -1,0 +1,71 @@
+# Amazon Web Crawler - Cursor Rules
+
+## Project Overview
+This is an Amazon product review crawler built with Python, Selenium, and BeautifulSoup. The project searches for products by keyword, extracts product details, and scrapes user reviews with filtering and pagination support.
+
+## Tech Stack
+- Python 3.9+
+- Selenium WebDriver (Chrome)
+- BeautifulSoup4
+- Requests
+- Pandas
+- python-dotenv
+
+## Code Style & Standards
+- Follow PEP 8 Python style guidelines
+- Use type hints for function parameters and return values
+- Add docstrings for all functions and classes
+- Use meaningful variable and function names
+- Handle exceptions gracefully with try-catch blocks
+- Add comments for complex logic
+
+## Project Structure
+- `main.py` - CLI interface and main entry point
+- `amazon_crawler.py` - Core crawler class with Selenium automation
+- `requirements.txt` - Python dependencies
+- `.env` - Environment variables (credentials) - NEVER COMMIT
+- `env_example.txt` - Template for environment variables
+- `output/` - Directory for generated JSON/CSV files
+
+## Key Features
+1. **Product Search**: Search Amazon by keyword, get top 3 products
+2. **Review Scraping**: Extract reviews with pagination support
+3. **Star Filtering**: Filter reviews by star rating (1-5 stars)
+4. **Automated Login**: Login to Amazon with cookie persistence
+5. **Data Export**: Save results to JSON and CSV formats
+
+## Important Considerations
+- Amazon has anti-bot measures - use respectful scraping practices
+- Always check and respect robots.txt before crawling
+- Implement proper delays between requests
+- Handle rate limiting and CAPTCHAs gracefully
+- Never commit credentials or sensitive data
+- Respect robots.txt and terms of service
+- Use headless mode for production runs
+
+## Common Patterns
+- Always check if WebDriver is initialized before use
+- Use WebDriverWait for element interactions
+- Implement fallback selectors for changing page structures
+- Add debugging output for troubleshooting
+- Clean up resources in finally blocks
+
+## Security Notes
+- Environment variables for credentials (AMAZON_EMAIL, AMAZON_PASSWORD)
+- .env file is gitignored
+- Use virtual environment (webCrawlerEnv)
+- Never hardcode credentials in source code
+
+## Testing & Debugging
+- Test with different product keywords
+- Verify selectors work with current Amazon page structure
+- Check for anti-bot detection and adjust accordingly
+- Monitor Chrome driver logs for issues
+- Test both headless and non-headless modes
+
+## When Making Changes
+- Update selectors if Amazon changes page structure
+- Add new fallback selectors for robustness
+- Test login functionality with real credentials
+- Verify review scraping works with different products
+- Update documentation if adding new features
