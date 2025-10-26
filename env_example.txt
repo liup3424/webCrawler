@@ -1,0 +1,8 @@
+# Amazon Crawler Environment Variables
+# Copy this file to .env and fill in your credentials
+
+# Amazon login credentials (optional - only needed if using --login flag)
+AMAZON_EMAIL=your_email@example.com
+AMAZON_PASSWORD=your_password
+
+# Note: Be careful with credentials and never commit .env files to version control
