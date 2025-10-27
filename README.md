@@ -16,7 +16,7 @@ A comprehensive web crawler for Amazon product reviews with support for product 
 1. Clone the repository:
 ```bash
 git clone <your-repo-url>
-cd beebee
+cd webCrawler
 ```
 
 2. Install dependencies:
