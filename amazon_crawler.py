@@ -515,8 +515,20 @@ class AmazonCrawler:
             time.sleep(2)
             page_source = self.driver.page_source.lower()
             if "sign in" in page_source and "hello," not in page_source:
-                print("⚠️ Session expired - cookies may need to be refreshed")
-                return []
+                print("⚠️ Session expired - attempting to reload cookies")
+                if self.load_cookies():
+                    print("🔄 Cookies reloaded, retrying session check...")
+                    self.driver.get("https://www.amazon.com")
+                    time.sleep(2)
+                    page_source = self.driver.page_source.lower()
+                    if "sign in" in page_source and "hello," not in page_source:
+                        print("❌ Session still expired after cookie reload")
+                        return []
+                    else:
+                        print("✅ Session restored after cookie reload")
+                else:
+                    print("❌ Failed to reload cookies")
+                    return []
                 
             # Navigate to product reviews page
             if '/dp/' in product_url:
@@ -558,8 +570,24 @@ class AmazonCrawler:
                         success = True
                         break
                     elif "signin" in current_url:
-                        print("❌ Redirected to login page")
-                        continue
+                        print("❌ Redirected to login page - attempting to reload cookies")
+                        # Try to reload cookies and retry
+                        if self.load_cookies():
+                            print("🔄 Cookies reloaded, retrying...")
+                            time.sleep(2)
+                            self.driver.get(url)
+                            time.sleep(3)
+                            current_url = self.driver.current_url
+                            if "product-reviews" in current_url and "signin" not in current_url:
+                                print("✅ Successfully reached reviews page after cookie reload")
+                                success = True
+                                break
+                            else:
+                                print("❌ Still redirected after cookie reload")
+                                continue
+                        else:
+                            print("❌ Failed to reload cookies")
+                            continue
                     else:
                         print("⚠️ Unexpected page, trying next URL")
                         continue
