@@ -46,11 +46,6 @@ Filter reviews by star rating and scrape more pages:
 python main.py "wireless headphones" --star-filter 5 --max-pages 3
 ```
 
-Login to Amazon account:
-```bash
-python main.py "wireless headphones" --login
-```
-
 Specify output format and directory:
 ```bash
 python main.py "wireless headphones" --output-format json --output-dir results
