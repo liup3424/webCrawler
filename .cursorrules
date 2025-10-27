@@ -27,7 +27,6 @@ This is an Amazon product review crawler built with Python, Selenium, and Beauti
 - `env_example.txt` - Template for environment variables
 - `output/` - Directory for generated JSON/CSV files
 
-## Key Features
 1. **Product Search**: Search Amazon by keyword, get top 3 products
 2. **Review Scraping**: Extract reviews with pagination support
 3. **Star Filtering**: Filter reviews by star rating (1-5 stars)

@@ -21,36 +21,52 @@ def main():
                        help='Maximum number of review pages to scrape (default: 2)')
     parser.add_argument('--headless', action='store_true', default=True,
                        help='Run browser in headless mode (default: True)')
-    parser.add_argument('--login', action='store_true',
-                       help='Login to Amazon account (requires AMAZON_EMAIL and AMAZON_PASSWORD env vars)')
+    parser.add_argument('--no-headless', action='store_true',
+                       help='Run browser in non-headless mode (shows browser window)')
+    parser.add_argument('--manual-login', action='store_true',
+                       help='Manual login mode - opens browser for you to login manually and saves cookies')
+    parser.add_argument('--no-auto-login', action='store_true',
+                       help='Disable automatic cookie loading (default: auto-load cookies if available)')
     parser.add_argument('--output-format', choices=['json', 'csv', 'both'], default='both',
                        help='Output format for saved data (default: both)')
-    parser.add_argument('--output-dir', default='output',
-                       help='Output directory for saved files (default: output)')
+    parser.add_argument('--output-dir', default=None,
+                       help='Output directory for saved files (default: ./output)')
     
     args = parser.parse_args()
+    
+    # Set default output directory to ./output in current repo
+    if args.output_dir is None:
+        args.output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output')
     
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
     
+    # Determine headless mode
+    headless_mode = args.headless and not args.no_headless
+    
     # Initialize crawler
-    crawler = AmazonCrawler(headless=args.headless)
+    crawler = AmazonCrawler(headless=headless_mode)
     
     try:
-        # Login if requested
-        if args.login:
-            email = os.getenv('AMAZON_EMAIL')
-            password = os.getenv('AMAZON_PASSWORD')
-            
-            if not email or not password:
-                print("Error: AMAZON_EMAIL and AMAZON_PASSWORD environment variables must be set for login")
-                sys.exit(1)
-                
-            print("Logging into Amazon...")
-            if not crawler.login_to_amazon(email, password):
-                print("Login failed. Continuing without login...")
+        # Handle different login methods
+        if args.manual_login:
+            print("Starting manual login process...")
+            if not crawler.manual_login_and_save_cookies():
+                print("Manual login failed. Continuing without login...")
             else:
-                print("Successfully logged in!")
+                print("Manual login successful!")
+                
+        elif not args.no_auto_login:
+            # Auto-detect and load cookies by default
+            print("Auto-detecting saved cookies...")
+            if not crawler.load_cookies():
+                print("⚠️  No valid cookies found or cookies expired!")
+                print("💡 To login manually, run:")
+                print(f"   python main.py \"{args.keyword}\" --manual-login --no-headless")
+                print("Continuing without login...")
+            else:
+                print("✅ Cookies loaded successfully!")
+                
         
         # Search for products
         print(f"Searching for products with keyword: '{args.keyword}'")
