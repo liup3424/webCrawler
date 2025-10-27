@@ -57,17 +57,10 @@ python main.py "wireless headphones" --output-format json --output-dir results
 - `--star-filter`: Filter reviews by star rating (1-5)
 - `--max-pages`: Maximum number of review pages to scrape (default: 2)
 - `--headless`: Run browser in headless mode (default: True)
-- `--login`: Login to Amazon account (requires env vars)
+- `--manual-login`: Login to Amazon account manually
 - `--output-format`: Output format - json, csv, or both (default: both)
 - `--output-dir`: Output directory for saved files (default: output)
 
-## Environment Variables
-
-Create a `.env` file with your Amazon credentials (optional):
-```
-AMAZON_EMAIL=your_email@example.com
-AMAZON_PASSWORD=your_password
-```
 
 ## Output Data
 
