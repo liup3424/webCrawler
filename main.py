@@ -15,14 +15,12 @@ def main():
     parser.add_argument('keyword', help='Product keyword to search for')
     parser.add_argument('--top-count', type=int, default=3, 
                        help='Number of top products to scrape (default: 3)')
-    parser.add_argument('--star-filter', type=int, choices=[1,2,3,4,5], 
-                       help='Filter reviews by star rating (1-5)')
+    parser.add_argument('--star-filter', type=str, 
+                       help='Filter reviews by star rating(s). Single star: "4" or Multiple stars: "4,5" or "1,2,3" (1-5)')
     parser.add_argument('--max-pages', type=int, default=2, 
                        help='Maximum number of review pages to scrape (default: 2)')
     parser.add_argument('--headless', action='store_true', default=True,
                        help='Run browser in headless mode (default: True)')
-    parser.add_argument('--no-headless', action='store_true',
-                       help='Run browser in non-headless mode (shows browser window)')
     parser.add_argument('--manual-login', action='store_true',
                        help='Manual login mode - opens browser for you to login manually and saves cookies')
     parser.add_argument('--no-auto-login', action='store_true',
@@ -34,6 +32,21 @@ def main():
     
     args = parser.parse_args()
     
+    # Parse star filter
+    star_filter = None
+    if args.star_filter:
+        try:
+            star_list = [int(x.strip()) for x in args.star_filter.split(',')]
+            # Validate star ratings (1-5)
+            if not all(1 <= star <= 5 for star in star_list):
+                print("Error: Star ratings must be between 1 and 5")
+                sys.exit(1)
+            star_filter = star_list
+            print(f"Star filter: {star_filter}")
+        except ValueError:
+            print("Error: Invalid star filter format. Use: '4' or '4,5' or '1,2,3'")
+            sys.exit(1)
+    
     # Set default output directory to ./output in current repo
     if args.output_dir is None:
         args.output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output')
@@ -42,30 +55,45 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     # Determine headless mode
-    headless_mode = args.headless and not args.no_headless
+    headless_mode = args.headless
     
     # Initialize crawler
     crawler = AmazonCrawler(headless=headless_mode)
     
     try:
-        # Handle different login methods
+        # Handle login logic
+        cookie_file = "amazon_cookies.json"
+        
         if args.manual_login:
+            # Force manual login (refresh cookies)
             print("Starting manual login process...")
             if not crawler.manual_login_and_save_cookies():
                 print("Manual login failed. Continuing without login...")
             else:
                 print("Manual login successful!")
                 
-        elif not args.no_auto_login:
-            # Auto-detect and load cookies by default
-            print("Auto-detecting saved cookies...")
-            if not crawler.load_cookies():
-                print("⚠️  No valid cookies found or cookies expired!")
-                print("💡 To login manually, run:")
-                print(f"   python main.py \"{args.keyword}\" --manual-login --no-headless")
-                print("Continuing without login...")
+        elif args.no_auto_login:
+            # Skip login entirely
+            print("Skipping login (--no-auto-login specified)")
+            
+        else:
+            # Smart cookie detection
+            if os.path.exists(cookie_file):
+                print("Found existing cookies, loading...")
+                if not crawler.load_cookies():
+                    print("⚠️  Cookies expired or invalid! Starting manual login...")
+                    if not crawler.manual_login_and_save_cookies():
+                        print("Manual login failed. Continuing without login...")
+                    else:
+                        print("Manual login successful!")
+                else:
+                    print("✅ Cookies loaded successfully!")
             else:
-                print("✅ Cookies loaded successfully!")
+                print("⚠️  No cookies found! Starting manual login...")
+                if not crawler.manual_login_and_save_cookies():
+                    print("Manual login failed. Continuing without login...")
+                else:
+                    print("Manual login successful!")
                 
         
         # Search for products
@@ -93,7 +121,7 @@ def main():
             
             reviews = crawler.scrape_reviews(
                 product['url'], 
-                star_filter=args.star_filter,
+                star_filter=star_filter,
                 max_pages=args.max_pages
             )
             

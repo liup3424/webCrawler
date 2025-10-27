@@ -94,8 +94,8 @@ class AmazonCrawler:
             
             self.driver.get(login_url)
             
-            print("Please log in manually — you have 60 seconds...")
-            time.sleep(60)
+            print("Please log in manually — you have 180 seconds...")
+            time.sleep(180)
             
             # Extract cookies
             cookies = self.driver.get_cookies()
@@ -160,25 +160,19 @@ class AmazonCrawler:
             
             # Check if we're logged in by looking for account indicators
             page_source = self.driver.page_source.lower()
-            if "hello," in page_source or "your account" in page_source:
+            is_logged_in = (
+                "hello," in page_source or 
+                "your account" in page_source or
+                "account & lists" in page_source or
+                "orders" in page_source or
+                "prime" in page_source
+            )
+            
+            if is_logged_in:
                 print("✅ Cookies working - logged in detected")
-            else:
-                print("⚠️ Cookies may not be working properly")
-            
-            # Check if login was successful by looking for account indicators
-            page_source = self.driver.page_source.lower()
-            success_indicators = [
-                "hello," in page_source,
-                "your account" in page_source,
-                "sign out" in page_source,
-                "account & lists" in page_source
-            ]
-            
-            if any(success_indicators):
-                print("✅ Successfully loaded saved cookies!")
                 return True
             else:
-                print("❌ Cookies may be expired or invalid. Please login manually again.")
+                print("⚠️ Cookies may not be working properly")
                 return False
                 
         except Exception as e:
@@ -419,7 +413,7 @@ class AmazonCrawler:
                                     href = link_element.get_attribute('href')
                                     if href and ('/dp/' in href or '/gp/product/' in href or '/product/' in href):
                                         product_url = href
-                                        print(f"    ✅ Found URL with selector {j+1}: {selector}")
+                                        # print(f"    ✅ Found URL with selector {j+1}: {selector}")
                                         break
                                 if product_url != "N/A":
                                     break
@@ -504,7 +498,206 @@ class AmazonCrawler:
             print(f"Search error: {e}")
             return []
             
-    def scrape_reviews(self, product_url: str, star_filter: Optional[int] = None, max_pages: int = 2) -> List[Dict]:
+    def apply_star_filter(self, star: int) -> bool:
+        """Apply a single star filter on Amazon's review page."""
+        try:
+            # Try different selectors for star filter buttons
+            selectors = [
+                f'[data-hook="review-star-filter-{star}"]',
+                f'a[href*="filterByStar={star}_star"]',
+                f'button[data-hook="review-star-filter-{star}"]',
+                f'[aria-label*="{star} star"]'
+            ]
+            
+            for selector in selectors:
+                try:
+                    star_filter_btn = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    star_filter_btn.click()
+                    time.sleep(3)
+                    print(f"✅ Applied {star}-star filter on Amazon")
+                    return True
+                except:
+                    continue
+            
+            print(f"⚠️ Could not apply {star}-star filter on Amazon")
+            return False
+            
+        except Exception as e:
+            print(f"❌ Error applying {star}-star filter: {e}")
+            return False
+    
+    def _get_review(self, element) -> Dict:
+        """Extract review data from a single review element."""
+        review_data = {}
+        
+        # Review text
+        try:
+            review_text_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-body"] span')
+            review_data['review_text'] = review_text_element.text.strip()
+        except:
+            review_data['review_text'] = "N/A"
+        
+        # Star rating
+        try:
+            rating_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-star-rating"]')
+            rating_text = rating_element.get_attribute('textContent')
+            review_data['star_rating'] = rating_text.split()[0]
+        except:
+            review_data['star_rating'] = "N/A"
+        
+        # Review date
+        try:
+            date_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-date"]')
+            review_data['review_date'] = date_element.text.strip()
+        except:
+            review_data['review_date'] = "N/A"
+        
+        # Reviewer nickname
+        try:
+            # Try multiple selectors for reviewer name
+            reviewer_selectors = [
+                '[data-hook="review-author"]',
+                '.a-profile-name',
+                '.review-byline .author',
+                '.cr-original-review-item .a-profile-name',
+                '[data-hook="review-author"] .a-profile-name'
+            ]
+            
+            reviewer_element = None
+            for selector in reviewer_selectors:
+                try:
+                    reviewer_element = element.find_element(By.CSS_SELECTOR, selector)
+                    break
+                except:
+                    continue
+            
+            if reviewer_element:
+                review_data['reviewer_nickname'] = reviewer_element.text.strip()
+            else:
+                review_data['reviewer_nickname'] = "N/A"
+        except:
+            review_data['reviewer_nickname'] = "N/A"
+        
+        # Review title
+        try:
+            # Try multiple selectors for review title with debugging
+            title_selectors = [
+                '[data-hook="review-title"] span',
+                '[data-hook="review-title"]',
+                '.review-title',
+                '.cr-original-review-item .review-title',
+                'a[data-hook="review-title"]',
+                '[data-hook="review-title"] a',
+                '.a-size-base.review-title',
+                '.review-title-text',
+                'h3[data-hook="review-title"]',
+                '.a-text-bold.review-title'
+            ]
+            
+            title_element = None
+            for i, selector in enumerate(title_selectors):
+                try:
+                    title_element = element.find_element(By.CSS_SELECTOR, selector)
+                    if title_element and title_element.text.strip():
+                        break
+                except:
+                    continue
+            
+            if title_element and title_element.text.strip():
+                review_data['review_title'] = title_element.text.strip()
+            else:
+                # Try to find any text that might be a title
+                try:
+                    # Look for any text that's not the review body
+                    all_text_elements = element.find_elements(By.CSS_SELECTOR, '*')
+                    for text_elem in all_text_elements:
+                        text = text_elem.text.strip()
+                        if text and len(text) < 200 and text not in review_data.get('review_text', ''):
+                            # This might be a title
+                            review_data['review_title'] = text
+                            break
+                    else:
+                        review_data['review_title'] = "N/A"
+                except:
+                    review_data['review_title'] = "N/A"
+        except:
+            review_data['review_title'] = "N/A"
+        
+        return review_data
+    
+    def _scrape_review_pages(self, max_pages: int) -> List[Dict]:
+        """Scrape reviews from multiple pages."""
+        reviews = []
+        page_count = 0
+        
+        while page_count < max_pages:
+            print(f"Scraping page {page_count + 1}...")
+            
+            # Try multiple selectors for review elements
+            review_elements = []
+            review_selectors = [
+                '[data-hook="review"]',
+                '.review',
+                '[data-hook="review-body"]',
+                '.a-section.review',
+                '.cr-original-review-item'
+            ]
+            
+            for selector in review_selectors:
+                review_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                if review_elements:
+                    print(f"Found {len(review_elements)} reviews") #  with selector: {selector}
+                    break
+            
+            if not review_elements:
+                print("❌ No review elements found on this page")
+                break
+            
+            for element in review_elements:
+                try:
+                    review_data = self._get_review(element)
+                    reviews.append(review_data)
+                except Exception as e:
+                    print(f"Error extracting review: {e}")
+                    continue
+            
+            # Try to go to next page
+            page_count += 1
+            if page_count < max_pages:
+                try:
+                    # Try multiple selectors for next page button
+                    next_btn = None
+                    next_selectors = [
+                        '.a-pagination .a-last a',
+                        '.a-pagination .a-next',
+                        '[aria-label="Next Page"]',
+                        '.a-pagination .a-last',
+                        'a[aria-label="Next Page"]'
+                    ]
+                    
+                    for selector in next_selectors:
+                        try:
+                            next_btn = self.driver.find_element(By.CSS_SELECTOR, selector)
+                            if next_btn.is_enabled():
+                                print(f"Found next page button") #  with selector: {selector}
+                                break
+                        except:
+                            continue
+                    
+                    if next_btn and next_btn.is_enabled():
+                        next_btn.click()
+                        time.sleep(3)
+                        print(f"Navigated to page {page_count + 1}")
+                    else:
+                        print("No more pages available")
+                        break
+                except Exception as e:
+                    print(f"No more pages available: {e}")
+                    break
+        
+        return reviews
+    
+    def scrape_reviews(self, product_url: str, star_filter: Optional[List[int]] = None, max_pages: int = 2) -> List[Dict]:
         """Scrape reviews for a specific product with optional star filtering."""
         try:
             if not self.driver:
@@ -514,14 +707,31 @@ class AmazonCrawler:
             self.driver.get("https://www.amazon.com")
             time.sleep(2)
             page_source = self.driver.page_source.lower()
-            if "sign in" in page_source and "hello," not in page_source:
+            
+            # More comprehensive login check
+            is_logged_in = (
+                "hello," in page_source or 
+                "your account" in page_source or
+                "account & lists" in page_source or
+                "orders" in page_source or
+                "prime" in page_source
+            )
+            
+            if not is_logged_in and "sign in" in page_source:
                 print("⚠️ Session expired - attempting to reload cookies")
                 if self.load_cookies():
                     print("🔄 Cookies reloaded, retrying session check...")
                     self.driver.get("https://www.amazon.com")
                     time.sleep(2)
                     page_source = self.driver.page_source.lower()
-                    if "sign in" in page_source and "hello," not in page_source:
+                    is_logged_in = (
+                        "hello," in page_source or 
+                        "your account" in page_source or
+                        "account & lists" in page_source or
+                        "orders" in page_source or
+                        "prime" in page_source
+                    )
+                    if not is_logged_in:
                         print("❌ Session still expired after cookie reload")
                         return []
                     else:
@@ -586,8 +796,23 @@ class AmazonCrawler:
                                 print("❌ Still redirected after cookie reload")
                                 continue
                         else:
-                            print("❌ Failed to reload cookies")
-                            continue
+                            print("❌ Failed to reload cookies - attempting manual login")
+                            if self.manual_login_and_save_cookies():
+                                print("🔄 Manual login successful, retrying...")
+                                time.sleep(2)
+                                self.driver.get(url)
+                                time.sleep(3)
+                                current_url = self.driver.current_url
+                                if "product-reviews" in current_url and "signin" not in current_url:
+                                    print("✅ Successfully reached reviews page after manual login")
+                                    success = True
+                                    break
+                                else:
+                                    print("❌ Still redirected after manual login")
+                                    continue
+                            else:
+                                print("❌ Manual login failed")
+                                continue
                     else:
                         print("⚠️ Unexpected page, trying next URL")
                         continue
@@ -600,123 +825,25 @@ class AmazonCrawler:
                 print("❌ Could not access any review page")
                 return []
             
-            # Apply star filter if specified
-            if star_filter:
-                try:
-                    star_filter_btn = self.driver.find_element(By.CSS_SELECTOR, f'[data-hook="review-star-filter-{star_filter}"]')
-                    star_filter_btn.click()
-                    time.sleep(3)
-                    print(f"Applied {star_filter}-star filter")
-                except:
-                    print(f"Could not apply {star_filter}-star filter")
-            
+            # Scrape reviews with or without star filtering
             reviews = []
-            page_count = 0
             
-            while page_count < max_pages:
-                print(f"Scraping page {page_count + 1}...")
-                
-                # Try multiple selectors for review elements
-                review_elements = []
-                review_selectors = [
-                    '[data-hook="review"]',
-                    '.review',
-                    '[data-hook="review-body"]',
-                    '.a-section.review',
-                    '.cr-original-review-item'
-                ]
-                
-                for selector in review_selectors:
-                    review_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    if review_elements:
-                        print(f"Found {len(review_elements)} reviews with selector: {selector}")
-                        break
-                
-                if not review_elements:
-                    print("❌ No review elements found on this page")
-                    break
-                
-                for element in review_elements:
-                    try:
-                        # Extract review data
-                        review_data = {}
-                        
-                        # Review text
-                        try:
-                            review_text_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-body"] span')
-                            review_data['review_text'] = review_text_element.text.strip()
-                        except:
-                            review_data['review_text'] = "N/A"
-                        
-                        # Star rating
-                        try:
-                            rating_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-star-rating"]')
-                            rating_text = rating_element.get_attribute('textContent')
-                            review_data['star_rating'] = rating_text.split()[0]
-                        except:
-                            review_data['star_rating'] = "N/A"
-                        
-                        # Review date
-                        try:
-                            date_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-date"]')
-                            review_data['review_date'] = date_element.text.strip()
-                        except:
-                            review_data['review_date'] = "N/A"
-                        
-                        # Reviewer nickname
-                        try:
-                            reviewer_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-author"]')
-                            review_data['reviewer_nickname'] = reviewer_element.text.strip()
-                        except:
-                            review_data['reviewer_nickname'] = "N/A"
-                        
-                        # Review title
-                        try:
-                            title_element = element.find_element(By.CSS_SELECTOR, '[data-hook="review-title"] span')
-                            review_data['review_title'] = title_element.text.strip()
-                        except:
-                            review_data['review_title'] = "N/A"
-                        
-                        reviews.append(review_data)
-                        
-                    except Exception as e:
-                        print(f"Error extracting review: {e}")
-                        continue
-                
-                # Try to go to next page
-                page_count += 1
-                if page_count < max_pages:
-                    try:
-                        # Try multiple selectors for next page button
-                        next_btn = None
-                        next_selectors = [
-                            '.a-pagination .a-last a',
-                            '.a-pagination .a-next',
-                            '[aria-label="Next Page"]',
-                            '.a-pagination .a-last',
-                            'a[aria-label="Next Page"]'
-                        ]
-                        
-                        for selector in next_selectors:
-                            try:
-                                next_btn = self.driver.find_element(By.CSS_SELECTOR, selector)
-                                if next_btn.is_enabled():
-                                    print(f"Found next page button with selector: {selector}")
-                                    break
-                            except:
-                                continue
-                        
-                        if next_btn and next_btn.is_enabled():
-                            next_btn.click()
-                            time.sleep(3)
-                            print(f"Navigated to page {page_count + 1}")
-                        else:
-                            print("No more pages available")
-                            break
-                    except Exception as e:
-                        print(f"No more pages available: {e}")
-                        break
-                        
+            if star_filter:
+                # Apply each star filter and collect reviews
+                print(f"Applying star filters: {star_filter}")
+                for star in star_filter:
+                    print(f"Applying {star}-star filter...")
+                    self.apply_star_filter(star)
+                    
+                    # Scrape reviews for this star filter
+                    star_reviews = self._scrape_review_pages(max_pages)
+                    reviews.extend(star_reviews)
+                    print(f"Found {len(star_reviews)} reviews for {star}-star filter")
+            else:
+                # No star filter - scrape all reviews
+                print("No star filter - scraping all reviews")
+                reviews = self._scrape_review_pages(max_pages)
+            
             return reviews
             
         except Exception as e:
